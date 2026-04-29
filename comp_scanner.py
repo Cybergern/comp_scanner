@@ -29,6 +29,8 @@ class Result:
     deadlift: float
     total: float
     points: float
+    category: str
+    clazz: str
 
 parser = ET.HTMLParser()
 
@@ -52,27 +54,33 @@ def getResultList(driver: webdriver.Chrome, url: str) -> list[Result]:
         return []
     html = ET.parse(StringIO(contents), parser)
     results = []
-    for text in html.xpath("//*[@id=\"root\"]/div/div[2]/div/div/section/div/table/tbody/tr"):
-        info = list(text.iter("div"))
-        if len(info) == 9:
-            name = info[1].findtext("a")
-            club = info[2].text
-            bw = float(info[3].text)
-            squat = float(info[4].text)
-            bench = float(info[5].text)
-            deadlift = float(info[6].text)
-            total = float(info[7].text)
-            points = float(info[8].text)
-        else:
-            name = info[1].findtext("a")
-            club = info[2].text
-            bw = float(info[3].text)
-            squat = 0.0
-            bench = float(info[4].text)
-            deadlift = 0.0
-            total = float(info[4].text)
-            points = float(info[5].text)
-        results.append(Result(name, club, bw, squat, bench, deadlift, total, points))
+    for section in html.xpath("//*[@id=\"root\"]/div/div[2]/div/div/section"):
+        parts = section.findtext("h3").strip().split(" - ")
+        for text in section.xpath("./div/table/tbody/tr"):
+            info = list(text.iter("div"))
+            if len(info) == 9:
+                name = info[1].findtext("a")
+                club = info[2].text
+                bw = float(info[3].text)
+                squat = float(info[4].text)
+                bench = float(info[5].text)
+                deadlift = float(info[6].text)
+                total = float(info[7].text)
+                points = float(info[8].text)
+                category = parts[0]
+                clazz = parts[1]
+            else:
+                name = info[1].findtext("a")
+                club = info[2].text
+                bw = float(info[3].text)
+                squat = 0.0
+                bench = float(info[4].text)
+                deadlift = 0.0
+                total = float(info[4].text)
+                points = float(info[5].text)
+                category = parts[0]
+                clazz = parts[1]
+            results.append(Result(name, club, bw, squat, bench, deadlift, total, points, category, clazz))
     return results
 
 def getUrlContents(driver: webdriver.Chrome, url: str, wait_for_tag: str) -> str:
@@ -92,7 +100,7 @@ listingBaseUrl = f"{baseCompUrl}{listingParameters}"
 startDate = sys.argv[1]
 endDate = sys.argv[2]
 filteredClub = sys.argv[3]
-output_file = sys.argv[4]
+output_file =  "" if len(sys.argv) <= 4 else sys.argv[4]
 results = []
 driver = webdriver.Chrome()
 
@@ -113,17 +121,15 @@ while True:
         pageIndex += 1
         continue
     break
-header = "name,bw,class,squat,bench,deadlift,total,points,benchpoints,date,compname\n"
-lifter_rows = []
+lifter_rows = ["name,bw,class,squat,bench,deadlift,total,points,benchpoints,date,compname,category"]
 for comp in results:
     for r in comp["results"]:
         if r.club == filteredClub:
-            lifter_rows.append(f"{r.name},{r.bw},,{r.squat},{r.bench},{r.deadlift},{r.total},{r.points},,{comp['date']},{comp['name']}\n")
+            lifter_rows.append(f"{r.name},{r.bw},{r.clazz},{r.squat},{r.bench},{r.deadlift},{r.total},{r.points},,{comp['date']},{comp['name']},{r.category}")
 
 if output_file:
     with open(output_file, "w", encoding="utf-8") as f:
-        f.write(header)
-        f.writelines(lifter_rows)
+        f.write("\n".join(lifter_rows))
 else:
     for row in lifter_rows:
         print(row)
